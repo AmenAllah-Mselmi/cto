@@ -116,7 +116,7 @@ async function getWeeklyActivity(userId: string, period: string) {
     }
   })
 
-  return activity.map(day => ({
+  return activity.map((day: any) => ({
     date: day.date,
     workouts: day._count.id,
     duration: day._sum.duree || 0,

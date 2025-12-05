@@ -51,10 +51,12 @@ export default function AuthComponent() {
         // Simuler une connexion réussie
         setTimeout(() => {
           // Stocker les infos dans localStorage (simulé)
-          localStorage.setItem('auth_token', 'simulated_token_' + Date.now())
-          localStorage.setItem('user_name', formData.name || 'Utilisateur')
-          localStorage.setItem('user_email', formData.email || 'utilisateur@exemple.com')
-          
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('auth_token', 'simulated_token_' + Date.now())
+            localStorage.setItem('user_name', formData.name || 'Utilisateur')
+            localStorage.setItem('user_email', formData.email || 'utilisateur@exemple.com')
+          }
+
           // Rediriger vers la page utilisateur
           router.push('/user')
         }, 500)
@@ -62,10 +64,12 @@ export default function AuthComponent() {
         // Simuler une inscription réussie
         setTimeout(() => {
           // Stocker les infos dans localStorage (simulé)
-          localStorage.setItem('auth_token', 'simulated_token_' + Date.now())
-          localStorage.setItem('user_name', formData.name)
-          localStorage.setItem('user_email', formData.email || 'utilisateur@exemple.com')
-          
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('auth_token', 'simulated_token_' + Date.now())
+            localStorage.setItem('user_name', formData.name)
+            localStorage.setItem('user_email', formData.email || 'utilisateur@exemple.com')
+          }
+
           // Rediriger vers onboarding
           router.push('/onboarding')
         }, 500)
@@ -92,9 +96,11 @@ export default function AuthComponent() {
     try {
       setIsLoading(true)
       // Supprimer les infos de localStorage
-      localStorage.removeItem('auth_token')
-      localStorage.removeItem('user_name')
-      localStorage.removeItem('user_email')
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('auth_token')
+        localStorage.removeItem('user_name')
+        localStorage.removeItem('user_email')
+      }
       // Rediriger vers l'accueil
       router.push('/')
     } catch (err) {
@@ -107,14 +113,17 @@ export default function AuthComponent() {
 
   // Vérifier si l'utilisateur est connecté (via localStorage)
   const isLoggedIn = () => {
+    if (typeof window === 'undefined') return false
     return localStorage.getItem('auth_token') !== null
   }
 
   const getUserName = () => {
+    if (typeof window === 'undefined') return 'Utilisateur'
     return localStorage.getItem('user_name') || 'Utilisateur'
   }
 
   const getUserEmail = () => {
+    if (typeof window === 'undefined') return ''
     return localStorage.getItem('user_email') || ''
   }
 
@@ -126,9 +135,11 @@ export default function AuthComponent() {
     const randomEmail = `utilisateur${Math.floor(Math.random() * 10000)}@exemple.com`
     
     // Stocker les infos dans localStorage
-    localStorage.setItem('auth_token', 'quick_token_' + Date.now())
-    localStorage.setItem('user_name', 'Utilisateur Test')
-    localStorage.setItem('user_email', randomEmail)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('auth_token', 'quick_token_' + Date.now())
+      localStorage.setItem('user_name', 'Utilisateur Test')
+      localStorage.setItem('user_email', randomEmail)
+    }
     
     // Rediriger immédiatement
     setTimeout(() => {
