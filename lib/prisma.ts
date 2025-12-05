@@ -1,7 +1,10 @@
-import { PrismaClient } from '@prisma/client'
+/* Use runtime require to be compatible with different @prisma/client versions */
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const _prismaPkg: any = require('@prisma/client')
+const PrismaClient = _prismaPkg?.PrismaClient ?? _prismaPkg?.default ?? _prismaPkg
 
 const globalForPrisma = global as unknown as {
-  prisma: PrismaClient | undefined
+  prisma: any | undefined
 }
 
 // Ensure Prisma uses the binary engine by default in this environment
