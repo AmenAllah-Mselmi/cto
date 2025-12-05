@@ -1,0 +1,745 @@
+// prisma/schema.prisma
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider   = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+// ============================================
+// MODÈLES D'AUTHENTIFICATION (NextAuth)
+// ============================================
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  role          UserRole  @default(USER)
+  password      String?
+  
+  // Relations NextAuth
+  accounts      Account[]
+  sessions      Session[]
+  
+  // Relations Personnalisées
+  profilSportif ProfilSportif?
+  sessionsQCM   SessionQCM[]
+  programmes    Programme[]
+  favoris       Favori[]
+  analyses      AnalysePosturale[]
+  historique    HistoriqueEntrainement[]
+  seanceEntrainement SessionEntrainement[]
+  progressionProgramme ProgressionProgramme[]
+  recommandations RecommandationProduit[]
+  statistiques StatistiqueUtilisateur?
+  notifications Notification[]
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([email])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ============================================
+// MODÈLES SPORTIFS
+// ============================================
+
+model ProfilSportif {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  niveau               Niveau   @default(DEBUTANT)
+  objectif             Objectif
+  frequence            Int      // jours/semaine
+  age                  Int?
+  taille               Float?   // en cm
+  poids                Float?   // en kg
+  blessuresAnterieures Json?    // Array stored as JSON
+  sportsPratiques      Json?    // Array stored as JSON
+  scorePosture         Float?   @default(0)
+  pointsFaibles        Json?    // Array stored as JSON
+  pointsForts          Json?    // Array stored as JSON
+  
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([userId])
+}
+
+enum Niveau {
+  DEBUTANT
+  INTERMEDIAIRE
+  AVANCE
+  EXPERT
+}
+
+enum Objectif {
+  MUSCULATION
+  PERDRE_POIDS
+  SOUPLESSE
+  ENDURANCE
+  PREVENTION
+  REEDUCATION
+  PERFORMANCE
+}
+
+model SessionQCM {
+  id              String   @id @default(cuid())
+  userId          String
+  reponses        Json     // Stockage des réponses au QCM
+  score           Int
+  recommendations Json     // Recommandations générées
+  duree           Int?     // en secondes
+  completedAt     DateTime @default(now())
+  
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([completedAt])
+}
+
+// ============================================
+// MODÈLES D'EXERCICES
+// ============================================
+
+model Exercice {
+  id               String     @id @default(cuid())
+  nom              String     @unique
+  slug             String     @unique
+  categorie        Categorie
+  sousCategorie    String?
+  description      String
+  instructions     String
+  musclesCibles    Json   // Muscles principaux travaillés
+  musclesSecondaires Json // Muscles secondaires
+  materiel         Json   // Équipement nécessaire
+  dureeEstimee     Int        // en minutes
+  calories         Int?       // calories brûlées (estimation)
+  pointsTechniques Json   // Points techniques importants
+  
+  // Relations
+  instructionsDetaillees Instruction[]
+  erreurs               ErreurExercice[]
+  illustrations         Illustration[]
+  videos                VideoExercice[]
+  variantes             VarianteExercice[]
+  programmes            ProgrammeExercice[]
+  favoris               Favori[]
+  analyses              AnalyseExercice[]
+  difficultes          ExerciceDifficulte[]
+  analysesPosturales   AnalysePosturale[]
+  produits             ExerciceProduit[]
+  recommandations      RecommandationProduit[]
+  realisations         RealisationExercice[]
+  
+  // Métriques
+  noteMoyenne       Float?    @default(0)
+  nombreEvaluations Int       @default(0)
+  popularite        Int       @default(0)
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([categorie])
+  @@index([popularite])
+}
+
+enum Categorie {
+  MUSCULATION
+  YOGA
+  CARDIO
+  ETIREMENT
+  MOBILITE
+  REEDUCATION
+  POSTURE
+}
+
+enum Difficulte {
+  TRES_FACILE
+  FACILE
+  MOYEN
+  DIFFICILE
+  EXPERT
+}
+
+model ExerciceDifficulte {
+  id          String     @id @default(cuid())
+  exerciceId  String
+  difficulte  Difficulte
+  
+  exercice    Exercice   @relation(fields: [exerciceId], references: [id], onDelete: Cascade)
+
+  @@unique([exerciceId, difficulte])
+  @@index([exerciceId])
+}
+
+model Instruction {
+  id          String   @id @default(cuid())
+  exerciceId  String
+  niveau      Niveau
+  titre       String
+  description String
+  etapes      Json     // Étapes détaillées en JSON
+  conseils    Json
+  duree       String?  // "30 secondes"
+  repetitions String?  // "3x10"
+  
+  exercice    Exercice @relation(fields: [exerciceId], references: [id], onDelete: Cascade)
+
+  @@index([exerciceId])
+}
+
+model ErreurExercice {
+  id          String   @id @default(cuid())
+  exerciceId  String
+  nom         String
+  description String
+  conseil     String
+  danger      Int      // Niveau de danger 1-5
+  imageUrl    String?  // Image de l'erreur
+  videoUrl    String?  // Vidéo de l'erreur
+  
+  exercice    Exercice @relation(fields: [exerciceId], references: [id], onDelete: Cascade)
+
+  @@index([exerciceId])
+}
+
+model Illustration {
+  id          String   @id @default(cuid())
+  exerciceId  String
+  type        TypeIllustration
+  url         String
+  alt         String?
+  caption     String?
+  ordre       Int      // Ordre d'affichage
+  pointsCles  Json
+  
+  exercice    Exercice @relation(fields: [exerciceId], references: [id], onDelete: Cascade)
+
+  @@index([exerciceId])
+  @@index([type])
+}
+
+enum TypeIllustration {
+  IMAGE
+  GIF
+  SCHEMA
+  INFOGRAPHIE
+}
+
+model VideoExercice {
+  id          String   @id @default(cuid())
+  exerciceId  String
+  titre       String
+  url         String
+  duree       Int      // en secondes
+  description String?
+  qualite     QualiteVideo
+  langue      String   @default("fr")
+  sousTitres  Boolean  @default(false)
+  vues        Int      @default(0)
+  
+  exercice    Exercice @relation(fields: [exerciceId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+
+  @@index([exerciceId])
+  @@index([qualite])
+}
+
+enum QualiteVideo {
+  HD
+  FULL_HD
+  ULTRA_HD
+}
+
+model VarianteExercice {
+  id           String   @id @default(cuid())
+  exerciceId   String
+  nom          String
+  description  String
+  difficulte   Difficulte
+  instructions String
+  materiel     Json
+  
+  exercice     Exercice @relation(fields: [exerciceId], references: [id], onDelete: Cascade)
+
+  @@index([exerciceId])
+}
+
+// ============================================
+// MODÈLES DE PROGRAMMES
+// ============================================
+
+model Programme {
+  id               String   @id @default(cuid())
+  userId           String
+  nom              String
+  description      String
+  objectif         Objectif
+  niveau           Niveau
+  dureeTotale      Int      // en jours
+  joursParSemaine  Int
+  minutesParSeance Int
+  estPublic        Boolean  @default(false)
+  estComplet       Boolean  @default(false)
+  noteMoyenne      Float?   @default(0)
+  nombreEvaluations Int     @default(0)
+  
+  // Relations
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seances          Seance[]
+  progression      ProgressionProgramme[]
+  programmeExercices ProgrammeExercice[]
+  
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([userId])
+  @@index([objectif])
+  @@index([niveau])
+  @@index([estPublic])
+}
+
+model Seance {
+  id           String   @id @default(cuid())
+  programmeId  String
+  jour         Int      // Jour dans le programme (1, 2, 3...)
+  nom          String
+  description  String?
+  dureeEstimee Int      // en minutes
+  ordre        Int      // Ordre dans la journée
+  
+  programme    Programme @relation(fields: [programmeId], references: [id], onDelete: Cascade)
+  exercices    ProgrammeExercice[]
+
+  @@index([programmeId])
+  @@index([jour])
+}
+
+model ProgrammeExercice {
+  id              String   @id @default(cuid())
+  programmeId     String?
+  seanceId        String?
+  exerciceId      String
+  serie           Int      // Numéro de série
+  repetitions     String   // "10-12" ou "30s"
+  repos           Int?     // en secondes
+  poidsRecommandé String?  // "bodyweight" ou "5kg"
+  instructions    String?
+  ordre           Int      // Ordre dans la séance
+  
+  programme       Programme? @relation(fields: [programmeId], references: [id], onDelete: Cascade)
+  seance          Seance?    @relation(fields: [seanceId], references: [id], onDelete: Cascade)
+  exercice        Exercice   @relation(fields: [exerciceId], references: [id], onDelete: Cascade)
+
+  @@unique([seanceId, exerciceId, serie])
+  @@index([programmeId])
+  @@index([seanceId])
+  @@index([exerciceId])
+}
+
+model ProgressionProgramme {
+  id            String   @id @default(cuid())
+  programmeId   String
+  userId        String
+  jourActuel    Int
+  dateDebut     DateTime
+  dateFin       DateTime?
+  estTermine    Boolean  @default(false)
+  pourcentage   Float    @default(0)
+  notes         Json?    // Notes de progression
+  
+  programme     Programme @relation(fields: [programmeId], references: [id], onDelete: Cascade)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions      SessionEntrainement[]
+
+  @@unique([programmeId, userId])
+  @@index([programmeId])
+  @@index([userId])
+}
+
+// ============================================
+// MODÈLES D'ENTRAÎNEMENT
+// ============================================
+
+model SessionEntrainement {
+  id              String   @id @default(cuid())
+  userId          String
+  programmeId     String?
+  progressionId   String?
+  date            DateTime @default(now())
+  duree           Int      // en minutes
+  calories        Int?
+  satisfaction    Int?     // 1-5
+  notes           String?
+  estComplete     Boolean  @default(false)
+  
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  progression     ProgressionProgramme? @relation(fields: [progressionId], references: [id], onDelete: Cascade)
+  exercices       RealisationExercice[]
+
+  @@index([userId])
+  @@index([date])
+  @@index([progressionId])
+}
+
+model RealisationExercice {
+  id                   String   @id @default(cuid())
+  sessionId            String
+  exerciceId           String
+  serie                Int
+  repetitionsReelles   Int?
+  repetitionsCibles    String
+  poidsUtilise         String?
+  reposEffectue        Int?     // en secondes
+  difficultéPerçue     Int?     // 1-10
+  notes                String?
+  videoUrl             String?  // Vidéo de l'exécution
+  analysePosturaleId   String?   // Lien vers l'analyse
+  
+  session              SessionEntrainement @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exercice             Exercice            @relation(fields: [exerciceId], references: [id])
+  analysePosturale     AnalysePosturale?   @relation(fields: [analysePosturaleId], references: [id])
+
+  @@index([sessionId])
+  @@index([exerciceId])
+}
+
+model HistoriqueEntrainement {
+  id              String   @id @default(cuid())
+  userId          String
+  date            DateTime @default(now())
+  type            String   // "exercice", "programme", "analyse"
+  action          String   // "completé", "commencé", "abandonné"
+  details         Json?
+  metadonnees     Json?
+  
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([date])
+  @@index([type])
+}
+
+// ============================================
+// MODÈLES D'ANALYSE POSTURALE
+// ============================================
+
+model AnalysePosturale {
+  id                 String   @id @default(cuid())
+  userId             String
+  exerciceId         String?
+  videoUrl           String
+  thumbnailUrl       String?
+  duree              Int      // en secondes
+  dateAnalyse        DateTime @default(now())
+  
+  // Résultats d'analyse
+  scoreGlobal        Float
+  precision          Float    // Pourcentage de précision de l'analyse
+  pointsCles         Json     // Points clés détectés
+  angles             Json     // Angles calculés
+  alignements        Json     // Alignements analysés
+  symetrie           Float?   // Score de symétrie 0-100
+  
+  // Erreurs détectées
+  erreursDetectees   Json     // Liste des erreurs avec scores
+  recommendations    Json     // Recommandations générées
+  severiteMax        Int?     // Sévérité max des erreurs (1-5)
+  
+  // Métadonnées
+  modeleUtilise      String   // "MediaPipe", "MoveNet", etc.
+  versionModele      String
+  tempsTraitement    Int      // en millisecondes
+  
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercice           Exercice? @relation(fields: [exerciceId], references: [id])
+  realisations       RealisationExercice[]
+
+  @@index([userId])
+  @@index([dateAnalyse])
+  @@index([scoreGlobal])
+}
+
+model AnalyseExercice {
+  id              String   @id @default(cuid())
+  exerciceId      String
+  typeErreur      String
+  description     String
+  conseils        Json
+  severite        Int      // 1-5
+  videoExemple    String?
+  imageExemple    String?
+  pointsCles      Json // Points à surveiller
+  
+  exercice        Exercice @relation(fields: [exerciceId], references: [id], onDelete: Cascade)
+
+  @@index([exerciceId])
+  @@index([typeErreur])
+  @@index([severite])
+}
+
+// ============================================
+// MODÈLES DE PRODUITS (Decathlon)
+// ============================================
+
+model Produit {
+  id              String   @id @default(cuid())
+  sku             String   @unique
+  nom             String
+  description     String
+  categorie       String
+  sousCategorie   String?
+  marque          String   @default("Decathlon")
+  prix            Float
+  prixPromo       Float?
+  devise          String   @default("EUR")
+  lienDecathlon   String
+  imageUrl        String
+  images          Json // Images supplémentaires
+  enStock         Boolean  @default(true)
+  
+  // Caractéristiques
+  caracteristiques Json     // Caractéristiques techniques
+  tags            Json
+  couleurs        Json
+  tailles         Json
+  noteMoyenne     Float?   @default(0)
+  nombreAvis      Int      @default(0)
+  
+  // Relations
+  exercices       ExerciceProduit[]
+  recommandations RecommandationProduit[]
+  favoris         Favori[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([categorie])
+  @@index([marque])
+  @@index([prix])
+  @@index([tags])
+}
+
+model ExerciceProduit {
+  id         String   @id @default(cuid())
+  exerciceId String
+  produitId  String
+  
+  exercice   Exercice @relation(fields: [exerciceId], references: [id], onDelete: Cascade)
+  produit    Produit  @relation(fields: [produitId], references: [id], onDelete: Cascade)
+
+  @@unique([exerciceId, produitId])
+  @@index([exerciceId])
+  @@index([produitId])
+}
+
+model RecommandationProduit {
+  id              String   @id @default(cuid())
+  userId          String?
+  exerciceId      String?
+  produitId       String
+  raison          String   // "nécessaire", "recommandé", "complément"
+  priorite        Int      // 1-5 (1 = essentiel)
+  contexte        Json?    // Contexte de la recommandation
+  
+  user            User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercice        Exercice? @relation(fields: [exerciceId], references: [id], onDelete: Cascade)
+  produit         Produit  @relation(fields: [produitId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([exerciceId])
+  @@index([produitId])
+}
+
+// ============================================
+// MODÈLES UTILISATEUR
+// ============================================
+
+model Favori {
+  id         String   @id @default(cuid())
+  userId     String
+  exerciceId String?
+  produitId  String?
+  type       TypeFavori
+  notes      String?
+  
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercice   Exercice? @relation(fields: [exerciceId], references: [id], onDelete: Cascade)
+  produit    Produit?  @relation(fields: [produitId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, exerciceId, produitId])
+  @@index([userId])
+  @@index([type])
+}
+
+enum TypeFavori {
+  EXERCICE
+  PRODUIT
+  PROGRAMME
+}
+
+enum UserRole {
+  USER
+  COACH
+  ADMIN
+}
+
+model Notification {
+  id          String     @id @default(cuid())
+  userId      String
+  type        TypeNotification
+  titre       String
+  message     String
+  lien        String?
+  estLue      Boolean    @default(false)
+  estUrgente  Boolean    @default(false)
+  
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime   @default(now())
+
+  @@index([userId])
+  @@index([estLue])
+  @@index([createdAt])
+}
+
+enum TypeNotification {
+  SYSTEME
+  ENTRAINEMENT
+  PROGRESSION
+  NOUVEAUTE
+  PROMOTION
+  SECURITE
+}
+
+// ============================================
+// MODÈLES DE CONTENU
+// ============================================
+
+model Article {
+  id          String   @id @default(cuid())
+  titre       String
+  slug        String   @unique
+  resume      String
+  contenu     String   @db.Text
+  auteur      String
+  categorie   String
+  tags        Json
+  imageUrl    String
+  estPublic   Boolean  @default(true)
+  vues        Int      @default(0)
+  likes       Int      @default(0)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  publieLe    DateTime?
+
+  @@index([categorie])
+  @@index([estPublic])
+  @@index([publieLe])
+}
+
+model Conseil {
+  id          String   @id @default(cuid())
+  titre       String
+  contenu     String
+  categorie   String
+  difficulte  Difficulte
+  pointsCles  Json
+  imageUrl    String?
+  videoUrl    String?
+  ordre       Int      // Pour l'affichage
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([categorie])
+  @@index([difficulte])
+}
+
+// ============================================
+// MODÈLES DE STATISTIQUES
+// ============================================
+
+model StatistiqueUtilisateur {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  sessionsTotal         Int      @default(0)
+  tempsTotalEntrainement Int     @default(0) // en minutes
+  caloriesTotal         Int      @default(0)
+  exercicesCompletes    Int      @default(0)
+  programmesCompletes   Int      @default(0)
+  joursConsecutifs      Int      @default(0)
+  meilleurScore         Float?   @default(0)
+  tendanceScore         Float?   @default(0)
+  objectifsAtteints     Int      @default(0)
+  
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  derniereMiseAJour     DateTime @default(now())
+
+  @@index([userId])
+}
+
+model MetriqueApplication {
+  id                    String   @id @default(cuid())
+  date                  DateTime @default(now())
+  utilisateursActifs    Int      @default(0)
+  nouvellesInscriptions Int      @default(0)
+  sessionsTotal         Int      @default(0)
+  exercicesCompletes    Int      @default(0)
+  analysesEffectuees    Int      @default(0)
+  tempsMoyenSession     Float    @default(0) // en minutes
+  satisfactionMoyenne   Float    @default(0)
+  
+  @@index([date])
+}
