@@ -3,13 +3,11 @@
 'use client'
 
 import { useState } from 'react'
-import { signIn, signOut, useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
-  LogOut,
   Loader2,
   AlertCircle,
   Eye,
@@ -19,10 +17,8 @@ import {
   User,
   CheckCircle
 } from 'lucide-react'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 
 export default function AuthComponent() {
-  const { data: session, status } = useSession()
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
@@ -35,107 +31,47 @@ export default function AuthComponent() {
     confirmPassword: ''
   })
   const [rememberMe, setRememberMe] = useState(false)
-  const [acceptTerms, setAcceptTerms] = useState(false)
-
-  const handleGoogleAuth = async (mode: 'signin' | 'signup') => {
-    try {
-      setIsLoading(true)
-      setError('')
-      
-      const callbackUrl = mode === 'signup' ? '/onboarding' : '/user' // Changé de /dashboard à /user
-      
-      await signIn('google', { 
-        callbackUrl,
-        redirect: true 
-      })
-      
-    } catch (err) {
-      setError(`Erreur de ${mode === 'signup' ? 'création de compte' : 'connexion'} avec Google`)
-      console.error('Google auth error:', err)
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  const [acceptTerms, setAcceptTerms] = useState(true) // Pré-coché pour faciliter
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    // Validation de base
-    if (!formData.email || !formData.password) {
-      setError('Veuillez remplir tous les champs obligatoires')
+    // Validation minimale pour le nom lors de l'inscription
+    if (authMode === 'signup' && !formData.name) {
+      setError('Veuillez saisir votre nom')
       return
-    }
-    
-    if (authMode === 'signup') {
-      if (!formData.name) {
-        setError('Le nom est requis')
-        return
-      }
-      if (formData.password !== formData.confirmPassword) {
-        setError('Les mots de passe ne correspondent pas')
-        return
-      }
-      if (formData.password.length < 6) {
-        setError('Le mot de passe doit contenir au moins 6 caractères')
-        return
-      }
-      if (!acceptTerms) {
-        setError('Veuillez accepter les conditions d\'utilisation')
-        return
-      }
     }
 
     try {
       setIsLoading(true)
       setError('')
 
+      // Redirection immédiate selon le mode
       if (authMode === 'signin') {
-        // Connexion avec credentials - redirection vers /user
-        const result = await signIn('credentials', {
-          email: formData.email,
-          password: formData.password,
-          redirect: false,
-          callbackUrl: '/user' // Changé de /dashboard à /user
-        })
-
-        if (result?.error) {
-          setError('Email ou mot de passe incorrect')
-        } else if (result?.ok) {
-          // Rediriger directement vers /user
+        // Simuler une connexion réussie
+        setTimeout(() => {
+          // Stocker les infos dans localStorage (simulé)
+          localStorage.setItem('auth_token', 'simulated_token_' + Date.now())
+          localStorage.setItem('user_name', formData.name || 'Utilisateur')
+          localStorage.setItem('user_email', formData.email || 'utilisateur@exemple.com')
+          
+          // Rediriger vers la page utilisateur
           router.push('/user')
-        }
+        }, 500)
       } else {
-        // Inscription
-        const response = await fetch('/api/auth/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: formData.name,
-            email: formData.email,
-            password: formData.password
-          })
-        })
-
-        const data = await response.json()
-
-        if (!response.ok) {
-          setError(data.error || 'Erreur lors de l\'inscription')
-        } else {
-          // Auto-login après inscription - redirection vers /onboarding pour signup
-          const loginResult = await signIn('credentials', {
-            email: formData.email,
-            password: formData.password,
-            redirect: false,
-            callbackUrl: '/onboarding'
-          })
-
-          if (loginResult?.ok) {
-            router.push('/onboarding')
-          }
-        }
+        // Simuler une inscription réussie
+        setTimeout(() => {
+          // Stocker les infos dans localStorage (simulé)
+          localStorage.setItem('auth_token', 'simulated_token_' + Date.now())
+          localStorage.setItem('user_name', formData.name)
+          localStorage.setItem('user_email', formData.email || 'utilisateur@exemple.com')
+          
+          // Rediriger vers onboarding
+          router.push('/onboarding')
+        }, 500)
       }
     } catch (err) {
-      setError(`Erreur lors de ${authMode === 'signup' ? 'l\'inscription' : 'la connexion'}`)
+      setError(`Une erreur est survenue`)
       console.error('Auth error:', err)
     } finally {
       setIsLoading(false)
@@ -155,7 +91,12 @@ export default function AuthComponent() {
   const handleSignOut = async () => {
     try {
       setIsLoading(true)
-      await signOut({ callbackUrl: '/' })
+      // Supprimer les infos de localStorage
+      localStorage.removeItem('auth_token')
+      localStorage.removeItem('user_name')
+      localStorage.removeItem('user_email')
+      // Rediriger vers l'accueil
+      router.push('/')
     } catch (err) {
       setError('Erreur de déconnexion')
       console.error('Sign out error:', err)
@@ -164,29 +105,49 @@ export default function AuthComponent() {
     }
   }
 
-  // Loading state
-  if (status === 'loading') {
-    return (
-      <div className="flex items-center justify-center p-6">
-        <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
-      </div>
-    )
+  // Vérifier si l'utilisateur est connecté (via localStorage)
+  const isLoggedIn = () => {
+    return localStorage.getItem('auth_token') !== null
   }
 
-  // When user is authenticated show a compact profile + sign out
-  if (session) {
+  const getUserName = () => {
+    return localStorage.getItem('user_name') || 'Utilisateur'
+  }
+
+  const getUserEmail = () => {
+    return localStorage.getItem('user_email') || ''
+  }
+
+  // Option de connexion rapide - Se connecter directement sans formulaire
+  const quickLogin = () => {
+    setIsLoading(true)
+    
+    // Générer un email aléatoire
+    const randomEmail = `utilisateur${Math.floor(Math.random() * 10000)}@exemple.com`
+    
+    // Stocker les infos dans localStorage
+    localStorage.setItem('auth_token', 'quick_token_' + Date.now())
+    localStorage.setItem('user_name', 'Utilisateur Test')
+    localStorage.setItem('user_email', randomEmail)
+    
+    // Rediriger immédiatement
+    setTimeout(() => {
+      router.push('/user')
+      setIsLoading(false)
+    }, 300)
+  }
+
+  // Afficher le profil si connecté
+  if (isLoggedIn()) {
     return (
       <div className="flex items-center gap-3">
         <div className="hidden sm:flex items-center gap-3">
-          <Avatar className="w-10 h-10 border-2 border-white shadow-md">
-            <AvatarImage src={session.user?.image || ''} />
-            <AvatarFallback className="bg-gradient-to-r from-blue-600 to-cyan-500 text-white">
-              {session.user?.name?.charAt(0) || 'U'}
-            </AvatarFallback>
-          </Avatar>
+          <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-full flex items-center justify-center text-white font-semibold">
+            {getUserName().charAt(0).toUpperCase()}
+          </div>
           <div className="text-left">
-            <p className="text-sm font-semibold text-gray-900 truncate">{session.user?.name}</p>
-            <p className="text-xs text-gray-500 truncate">{session.user?.email}</p>
+            <p className="text-sm font-semibold text-gray-900 truncate">{getUserName()}</p>
+            <p className="text-xs text-gray-500 truncate">{getUserEmail()}</p>
           </div>
         </div>
         <Button 
@@ -197,8 +158,7 @@ export default function AuthComponent() {
           Mon profil
         </Button>
         <Button onClick={handleSignOut} disabled={isLoading} variant="ghost" className="flex items-center gap-2">
-          {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
-          <span className="hidden sm:inline">Se déconnecter</span>
+          {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Se déconnecter'}
         </Button>
       </div>
     )
@@ -227,8 +187,8 @@ export default function AuthComponent() {
                 </svg>
               </div>
               <div>
-                <p className="text-sm font-medium">Analyse avancée</p>
-                <p className="text-xs opacity-90">Technologie IA pour votre posture</p>
+                <p className="text-sm font-medium">Accès immédiat</p>
+                <p className="text-xs opacity-90">Aucune vérification requise</p>
               </div>
             </div>
             
@@ -239,21 +199,24 @@ export default function AuthComponent() {
                 </svg>
               </div>
               <div>
-                <p className="text-sm font-medium">Recommandations</p>
-                <p className="text-xs opacity-90">Exercices personnalisés</p>
+                <p className="text-sm font-medium">Mode démo</p>
+                <p className="text-xs opacity-90">Toutes les fonctionnalités disponibles</p>
               </div>
             </div>
           </div>
           
           <div className="relative z-10 mt-6">
-            <div className="flex items-center gap-2 text-sm">
-              <CheckCircle className="w-4 h-4" />
-              <span>Sécurisé et confidentiel</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm mt-2">
-              <CheckCircle className="w-4 h-4" />
-              <span>Gratuit pour commencer</span>
-            </div>
+            <Button 
+              onClick={quickLogin}
+              disabled={isLoading}
+              className="w-full bg-white text-blue-600 hover:bg-gray-100 py-3"
+            >
+              {isLoading ? (
+                <Loader2 className="w-5 h-5 animate-spin mx-auto" />
+              ) : (
+                'Accès instantané sans inscription'
+              )}
+            </Button>
           </div>
         </div>
 
@@ -297,8 +260,8 @@ export default function AuthComponent() {
             </h1>
             <p className="text-gray-500 text-sm mt-2">
               {authMode === 'signup' 
-                ? 'Commencez votre parcours sportif personnalisé' 
-                : 'Accédez à votre profil'}
+                ? 'Saisissez simplement un nom pour commencer' 
+                : 'Entrez n\'importe quel email et mot de passe'}
             </p>
           </div>
 
@@ -309,40 +272,6 @@ export default function AuthComponent() {
               <p className="text-sm text-red-700">{error}</p>
             </div>
           )}
-
-          {/* Google Auth Button */}
-          <div className="mb-8">
-            <Button
-              type="button"
-              onClick={() => handleGoogleAuth(authMode)}
-              disabled={isLoading}
-              variant="outline"
-              className="w-full flex items-center justify-center gap-3 py-6 text-base border-gray-300 hover:bg-gray-50"
-            >
-              {isLoading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <>
-                  <svg className="w-5 h-5" viewBox="0 0 24 24">
-                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                  </svg>
-                  <span className="font-medium">
-                    {authMode === 'signup' ? 'S\'inscrire avec Google' : 'Continuer avec Google'}
-                  </span>
-                </>
-              )}
-            </Button>
-          </div>
-
-          {/* Divider */}
-          <div className="flex items-center my-8">
-            <div className="flex-1 border-t border-gray-300"></div>
-            <span className="px-4 text-gray-500 text-sm">Ou continuez avec</span>
-            <div className="flex-1 border-t border-gray-300"></div>
-          </div>
 
           {/* Email/Password Form */}
           <form onSubmit={handleEmailAuth} className="space-y-5">
@@ -361,9 +290,8 @@ export default function AuthComponent() {
                     type="text"
                     value={formData.name}
                     onChange={handleInputChange}
-                    placeholder="Jean Dupont"
+                    placeholder="Votre nom (obligatoire)"
                     className="pl-10 py-6"
-                    required={authMode === 'signup'}
                   />
                 </div>
               </div>
@@ -383,9 +311,8 @@ export default function AuthComponent() {
                   type="email"
                   value={formData.email}
                   onChange={handleInputChange}
-                  placeholder="vous@exemple.com"
+                  placeholder="email@exemple.com (optionnel)"
                   className="pl-10 py-6"
-                  required
                 />
               </div>
             </div>
@@ -404,9 +331,8 @@ export default function AuthComponent() {
                   type={showPassword ? "text" : "password"}
                   value={formData.password}
                   onChange={handleInputChange}
-                  placeholder="••••••••"
+                  placeholder="•••••••• (optionnel)"
                   className="pl-10 py-6 pr-10"
-                  required
                 />
                 <button
                   type="button"
@@ -416,9 +342,6 @@ export default function AuthComponent() {
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
-              {authMode === 'signup' && (
-                <p className="text-xs text-gray-500">Minimum 6 caractères</p>
-              )}
             </div>
 
             {authMode === 'signup' && (
@@ -436,34 +359,10 @@ export default function AuthComponent() {
                     type={showPassword ? "text" : "password"}
                     value={formData.confirmPassword}
                     onChange={handleInputChange}
-                    placeholder="••••••••"
+                    placeholder="•••••••• (optionnel)"
                     className="pl-10 py-6"
-                    required={authMode === 'signup'}
                   />
                 </div>
-              </div>
-            )}
-
-            {authMode === 'signin' && (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="remember"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <Label htmlFor="remember" className="text-sm text-gray-600 cursor-pointer">
-                    Se souvenir de moi
-                  </Label>
-                </div>
-                <a
-                  href="/forgot-password"
-                  className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
-                >
-                  Mot de passe oublié ?
-                </a>
               </div>
             )}
 
@@ -475,7 +374,6 @@ export default function AuthComponent() {
                   checked={acceptTerms}
                   onChange={(e) => setAcceptTerms(e.target.checked)}
                   className="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  required
                 />
                 <Label htmlFor="terms" className="text-sm text-gray-600 cursor-pointer">
                   J'accepte les{' '}
@@ -488,16 +386,16 @@ export default function AuthComponent() {
 
             <Button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || (authMode === 'signup' && !formData.name)}
               className="w-full py-6 text-base bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white"
             >
               {isLoading ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                  {authMode === 'signup' ? 'Création du compte...' : 'Connexion...'}
+                  {authMode === 'signup' ? 'Redirection...' : 'Connexion...'}
                 </>
               ) : (
-                authMode === 'signup' ? 'Créer mon compte' : 'Accéder à mon profil'
+                authMode === 'signup' ? 'Commencer maintenant' : 'Accéder à mon profil'
               )}
             </Button>
           </form>
@@ -522,9 +420,9 @@ export default function AuthComponent() {
           {/* Additional Links */}
           <div className="mt-6 pt-6 border-t border-gray-200">
             <p className="text-xs text-center text-gray-500">
-              En continuant, vous acceptez nos conditions d'utilisation.
+              Mode démo - Aucune vérification d'identité n'est effectuée.
               <br />
-              <a href="/help" className="text-blue-600 hover:underline">Besoin d'aide ?</a>
+              <a href="/help" className="text-blue-600 hover:underline">Mode test uniquement</a>
             </p>
           </div>
         </div>
